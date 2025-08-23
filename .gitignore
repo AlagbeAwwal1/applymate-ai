@@ -1,0 +1,93 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+out/
+.next/
+.nuxt/
+.svelte-kit/
+coverage/
+tmp/
+temp/
+.cache/
+.vite/
+.vitest/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependency directories
+bower_components/
+jspm_packages/
+
+# Misc
+*.local
+*.sqlite
+*.sqlite3
+*.db
+*.pid
+
+# Test output
+test-results/
+junit.xml
+
+# Frontend specific
+public/static/
+public/build/
+*.map
+
+# Backend specific (Python/Django)
+*.pyc
+__pycache__/
+.mypy_cache/
+*.egg-info/
+*.egg
+# Added:
+backend/db.sqlite3
+backend/staticfiles/
+backend/media/
+backend/*.log
+backend/local_settings.py
+
+# Python envs & tooling
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.coverage*
+htmlcov/
+pip-wheel-metadata/
+.eggs/
+
+# Docker
+docker-compose.override.yml
+
+# Archives
+*.tgz
+*.gz
+*.zip
+*.tar
+*.rar
+*.7z
