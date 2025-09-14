@@ -22,7 +22,3 @@ services:
           property: connectionString
     healthCheckPath: /api/health/
 
-databases:
-  - name: applymate-db
-    plan: free
-
