@@ -7,6 +7,11 @@ class Company(models.Model):
     website = models.URLField(blank=True, null=True)
     def __str__(self): return self.name
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "name"], name="uniq_company_user_name")
+        ]
+
 class JobPosting(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="jobs" )
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='jobs')

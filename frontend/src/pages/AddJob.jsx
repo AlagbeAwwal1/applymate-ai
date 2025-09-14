@@ -5,10 +5,13 @@ export default function AddJob(){
   const [url, setUrl] = useState('')
   const [jd, setJD] = useState('')
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const [success, setSuccess] = useState('')
   const [preview, setPreview] = useState(null)
   const [title, setTitle] = useState('')
   const [companyName, setCompanyName] = useState('')
+  const [showConfirm, setShowConfirm] = useState(false)
 
   async function handleExtract(){
     try{
@@ -40,8 +43,15 @@ export default function AddJob(){
 
   async function handleSave(){
     if (!preview) return
+    setShowConfirm(true)
+  }
+
+  async function confirmSave(){
+    if (!preview) return
     try{
       setErr('')
+      setSuccess('')
+      setSaving(true)
       const payload = {
         company_name: companyName || preview.company || 'Unknown',
         title: title || preview.title || 'Untitled',
@@ -52,9 +62,19 @@ export default function AddJob(){
         jd_struct: preview,
       }
       await createJob(payload)
-      // ... navigate to the job or show toast
+      setSuccess('Job saved successfully!')
+      setShowConfirm(false)
+      // Clear form after successful save
+      setUrl('')
+      setJD('')
+      setPreview(null)
+      setTitle('')
+      setCompanyName('')
     }catch(e){
       setErr(String(e))
+      setShowConfirm(false)
+    }finally{
+      setSaving(false)
     }
   }
 
@@ -68,11 +88,12 @@ export default function AddJob(){
         <button className="btn" onClick={handleExtract} disabled={loading}>
           {loading ? 'Extracting…' : 'Extract Requirements'}
         </button>
-        <button className="btn btn-primary" onClick={handleSave} disabled={!preview}>
-          Save Job
+        <button className="btn btn-primary" onClick={handleSave} disabled={!preview || saving}>
+          {saving ? 'Saving…' : 'Save Job'}
         </button>
       </div>
       {err && <div className="text-red-600 text-sm">{err}</div>}
+      {success && <div className="text-green-600 text-sm">{success}</div>}
 
       {/* Mapped fields */}
       <input className="input" placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)} />
@@ -84,20 +105,52 @@ export default function AddJob(){
           <div className="card">
             <div className="font-semibold mb-1">Must-haves</div>
             <ul className="list-disc list-inside text-sm">
-              {(preview.must_haves.length ? preview.must_haves : ['—']).map((s,i)=> <li key={i}>{s}</li>)}
+              {(preview.must_haves.length ? preview.must_haves : ['—']).map((s,i)=> <li key={`must-${i}-${s.slice(0,10)}`}>{s}</li>)}
             </ul>
           </div>
           <div className="card">
             <div className="font-semibold mb-1">Skills</div>
             <ul className="list-disc list-inside text-sm">
-              {(preview.skills.length ? preview.skills : ['—']).map((s,i)=> <li key={i}>{s}</li>)}
+              {(preview.skills.length ? preview.skills : ['—']).map((s,i)=> <li key={`skill-${i}-${s.slice(0,10)}`}>{s}</li>)}
             </ul>
           </div>
           <div className="card">
             <div className="font-semibold mb-1">Nice-to-haves</div>
             <ul className="list-disc list-inside text-sm">
-              {(preview.nice_to_haves.length ? preview.nice_to_haves : ['—']).map((s,i)=> <li key={i}>{s}</li>)}
+              {(preview.nice_to_haves.length ? preview.nice_to_haves : ['—']).map((s,i)=> <li key={`nice-${s.slice(0,20)}-${i}`}>{s}</li>)}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-3">Confirm Save</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to save this job?
+            </p>
+            <div className="text-xs text-gray-500 mb-4">
+              <strong>Title:</strong> {title || preview?.title || 'Untitled'}<br/>
+              <strong>Company:</strong> {companyName || preview?.company || 'Unknown'}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button 
+                className="btn" 
+                onClick={() => setShowConfirm(false)}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={confirmSave}
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : 'Save Job'}
+              </button>
+            </div>
           </div>
         </div>
       )}

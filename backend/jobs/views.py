@@ -1,57 +1,31 @@
 # backend/jobs/views.py
 import io
 from datetime import datetime
+from django.utils import timezone
 from django.db.models import Q
-from django.http import FileResponse, HttpResponse
-from rest_framework.decorators import api_view, parser_classes
+from rest_framework.decorators import api_view, parser_classes, permission_classes, authentication_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Company, JobPosting, Application
-from .serializers import CompanySerializer, JobPostingSerializer, ApplicationSerializer, ResumeSerializer, GeneratedDocSerializer
+from .models import JobPosting, Application
+from .serializers import JobPostingSerializer, ApplicationSerializer, ResumeSerializer
 from docs_app.models import Resume, GeneratedDoc
 from utils.resume_parse import extract_text_from_file
 from utils.docx_export import markdown_to_docx
-from utils.ics_utils import simple_ics
 from ai import provider as ai_provider
 from django.conf import settings
 import requests
 from bs4 import BeautifulSoup
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from rest_framework.decorators import api_view, parser_classes, permission_classes,authentication_classes
 from rest_framework.permissions import AllowAny
+NOT_FOUND_MSG = {'detail': 'Not found'}
 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(_request):
-    ...
-    return Response({'ok': True, 'time': datetime.utcnow().isoformat()})
-
-
-@api_view(['GET'])
-def health(_request):
-    return Response({'ok': True, 'time': datetime.utcnow().isoformat()})
-
-
-@api_view(['GET', 'POST'])
-def job_list_create(request):
-    if request.method == 'GET':
-        q = request.query_params.get('q', '').strip()
-        qs = JobPosting.objects.select_related(
-            'company').order_by('-created_at')
-        if q:
-            qs = qs.filter(Q(title__icontains=q) |
-                           Q(company__name__icontains=q))
-        data = JobPostingSerializer(qs, many=True).data
-        return Response(data)
-    else:
-        serializer = JobPostingSerializer(data=request.data)
-        if serializer.is_valid():
-            job = serializer.save()
-            return Response(JobPostingSerializer(job).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'ok': True, 'time': timezone.now().isoformat()})
 
 
 @api_view(['GET', 'PATCH', 'DELETE'])
@@ -59,7 +33,7 @@ def job_detail(request, pk: int):
     try:
         job = JobPosting.objects.get(pk=pk)
     except JobPosting.DoesNotExist:
-        return Response({'detail': 'Not found'}, status=404)
+        return Response(NOT_FOUND_MSG, status=404)
 
     if request.method == 'GET':
         return Response(JobPostingSerializer(job).data)
@@ -92,7 +66,7 @@ def _fetch_text_from_url(url: str) -> str:
 @api_view(['POST'])
 @authentication_classes([])
 @permission_classes([AllowAny])
-def extract_jd_view(request):  
+def extract_jd_view(request):
     jd_text = request.data.get("jd_text", "")
     url = request.data.get("url")
     if url and not jd_text:
@@ -104,28 +78,12 @@ def extract_jd_view(request):
     return Response(jd_struct)
 
 
-@api_view(['GET', 'POST'])
-def app_list_create(request):
-    if request.method == 'GET':
-        job_id = request.query_params.get('job_id')
-        qs = Application.objects.all().order_by('-id')
-        if job_id:
-            qs = qs.filter(job_id=job_id)
-        return Response(ApplicationSerializer(qs, many=True).data)
-    else:
-        ser = ApplicationSerializer(data=request.data)
-        if ser.is_valid():
-            app = ser.save()
-            return Response(ApplicationSerializer(app).data, status=201)
-        return Response(ser.errors, status=400)
-
-
 @api_view(['GET', 'PATCH', 'DELETE'])
 def app_detail(request, pk: int):
     try:
         app = Application.objects.get(pk=pk)
     except Application.DoesNotExist:
-        return Response({'detail': 'Not found'}, status=404)
+        return Response(NOT_FOUND_MSG, status=404)
 
     if request.method == 'GET':
         return Response(ApplicationSerializer(app).data)
@@ -150,7 +108,7 @@ def fit_score(request):
         job = JobPosting.objects.get(pk=job_id)
         resume = Resume.objects.get(pk=resume_id)
     except (JobPosting.DoesNotExist, Resume.DoesNotExist):
-        return Response({'detail': 'Not found'}, status=404)
+        return Response(NOT_FOUND_MSG, status=404)
 
     jd = job.jd_struct or {}
     rtxt = (resume.parsed_text or "").lower()
@@ -161,10 +119,9 @@ def fit_score(request):
     all_sk = must | nice | other
 
     match = sorted({s for s in all_sk if s in rtxt})
-    miss_must = sorted(list(must - set(match)))
-    miss_nice = sorted(list(nice - set(match)))
-    miss_other = sorted(
-        list((other - set(match)) - set(miss_must) - set(miss_nice)))
+    miss_must = sorted(must - set(match))
+    miss_nice = sorted(nice - set(match))
+    miss_other = sorted((other - set(match)) - set(miss_must) - set(miss_nice))
     gaps = miss_must + miss_nice + miss_other
 
     # Weighted score: must-have=2, nice-to-have=1, others=1
@@ -206,7 +163,7 @@ def generate_doc(request):
     if not job_id:
         return Response({'detail': 'job_id is required'}, status=400)
     try:
-        job = JobPosting.objects.get(pk=job_id)
+        job = JobPosting.objects.get(pk=job_id, user=request.user)
     except JobPosting.DoesNotExist:
         return Response({'detail': 'Job not found'}, status=404)
 
@@ -229,7 +186,7 @@ def generate_doc(request):
         title = f"Resume Bullets - {job.title} at {job.company.name}"
 
     gen = GeneratedDoc.objects.create(
-        job=job, kind=kind, content_md=content_md)
+        user=request.user, job=job, kind=kind, content_md=content_md)
 
     file_url = None
     if export:
@@ -237,33 +194,23 @@ def generate_doc(request):
         buf = io.BytesIO()
         doc.save(buf)
         buf.seek(0)
-        filename = f"{kind}-{job.id}-{int(datetime.utcnow().timestamp())}.docx"
+        filename = f"{kind}-{job.id}-{int(timezone.now().timestamp())}.docx"
         path = default_storage.save(
             f"generated/{filename}", ContentFile(buf.read()))
         gen.file.name = path
         gen.save()
-        file_url = settings.MEDIA_URL + path
+        # Generate proper URL for frontend
+        if settings.DEBUG:
+            file_url = f"http://127.0.0.1:8000{settings.MEDIA_URL}{path}"
+        else:
+            # Production: use the request host
+            host = request.get_host()
+            protocol = 'https' if request.is_secure() else 'http'
+            file_url = f"{protocol}://{host}{settings.MEDIA_URL}{path}"
 
     data = {'id': gen.id, 'kind': gen.kind, 'content_md': gen.content_md,
             'file': gen.file.url if gen.file else None, 'file_url': file_url}
     return Response(data)
-
-
-@api_view(['GET', 'POST'])
-@parser_classes([MultiPartParser, FormParser, JSONParser])
-def resume_list_create(request):
-    if request.method == 'GET':
-        qs = Resume.objects.order_by('-created_at')
-        return Response(ResumeSerializer(qs, many=True).data)
-    else:
-        label = request.data.get('label', 'Base Resume')
-        f = request.FILES.get('file')
-        if not f:
-            return Response({'detail': 'file is required'}, status=400)
-        resume = Resume.objects.create(label=label, file=f)
-        resume.parsed_text = extract_text_from_file(resume.file.path)
-        resume.save()
-        return Response(ResumeSerializer(resume).data, status=201)
 
 
 @api_view(['GET', 'POST'])
@@ -320,13 +267,3 @@ def resume_list_create(request):
         resume.parsed_text = extract_text_from_file(resume.file.path)
         resume.save()
         return Response(ResumeSerializer(resume).data, status=201)
-@api_view(['POST'])
-def generate_doc(request):
-    ...
-    try:
-        job = JobPosting.objects.get(pk=job_id, user=request.user)
-    except JobPosting.DoesNotExist:
-        return Response({'detail':'Job not found'}, status=404)
-    ...
-    gen = GeneratedDoc.objects.create(user=request.user, job=job, kind=kind, content_md=content_md)
-    ...

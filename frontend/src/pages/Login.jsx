@@ -4,15 +4,15 @@ import { setTokens } from "../lib/auth";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
-  const [username, setU] = useState("");
-  const [password, setP] = useState("");
+  const [username, setusername] = useState("");
+  const [password, setpassword] = useState("");
   const [err, setErr] = useState("");
   const nav = useNavigate();
   const submit = async () => {
     try {
       setErr("");
       const { access, refresh } = await login({ username, password });
-      setTokens(access , refresh);
+      setTokens({ access, refresh });
       nav("/");
     } catch (e) {
       setErr(String(e));
@@ -26,14 +26,14 @@ export default function Login() {
         className="input mb-2"
         placeholder="Username"
         value={username}
-        onChange={(e) => setU(e.target.value)}
+        onChange={(e) => setusername(e.target.value)}
       />
       <input
         className="input mb-2"
         placeholder="Password"
         type="password"
         value={password}
-        onChange={(e) => setP(e.target.value)}
+        onChange={(e) => setpassword(e.target.value)}
       />
       {err && <div className="text-sm text-red-600 mb-2">{err}</div>}
       <button className="btn btn-primary w-full" onClick={submit}>
