@@ -110,7 +110,7 @@ CORS_ALLOW_ALL_ORIGINS = True  # tighten if needed
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://applymate-ai.vercel.app",
+    "https://applymate-ai.vercel.app/",
 ]
 # Add Render origin dynamically (scheme required)
 if render_host:

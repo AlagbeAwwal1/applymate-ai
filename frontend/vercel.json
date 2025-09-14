@@ -1,21 +1,16 @@
 {
   "builds": [
     {
-      "src": "package.json",
+      "src": "frontend/package.json",       
       "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+      "config": { "distDir": "dist" }
     }
   ],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
+    { "handle": "filesystem" },              
+    { "src": "/(.*)", "dest": "/index.html" } 
   ],
   "env": {
     "VITE_API_BASE": "https://applymate-backend.onrender.com/api"
   }
 }
-
